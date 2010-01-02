@@ -83,7 +83,7 @@ module CoffeeScript
     # If this is the top-level Expressions, wrap everything in a safety closure.
     def root_compile(o={})
       indent = o[:no_wrap] ? '' : TAB
-      code = compile(o.merge(:indent => indent, :scope => Scope.new), o[:no_wrap] ? nil : :code)
+      code = compile(o.merge(:indent => indent, :scope => Scope.new), o[:globals] ? nil : :code)
       code.gsub!(STRIP_TRAILING_WHITESPACE, '')
       o[:no_wrap] ? code : "(function(){\n#{code}\n})();"
     end

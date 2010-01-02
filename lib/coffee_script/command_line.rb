@@ -27,12 +27,13 @@ Usage:
     def initialize
       @mtimes = {}
       parse_options
-      return launch_repl if @options[:interactive]
+      return launch_repl    if @options[:interactive]
       return eval_scriptlet if @options[:eval]
+      return start_server   if @options[:server]
       check_sources
-      return run_scripts if @options[:run]
+      return run_scripts    if @options[:run]
       @sources.each {|source| compile_javascript(source) }
-      watch_coffee_scripts if @options[:watch]
+      watch_coffee_scripts  if @options[:watch]
     end
 
     # The "--help" usage message.
@@ -106,6 +107,26 @@ Usage:
       puts js
     end
 
+    # Run CoffeeScript as a server, compiling snippets of code sent over
+    # by the REPL.
+    def start_server
+      begin
+        loop do
+          size = STDIN.readpartial(4).unpack('L').first
+          code = ''
+          while length > 0
+            code << STDIN.readpartial(size)
+            size -= code.size
+          end
+          js = compile(code)
+          js_size = [js.size].pack('L')
+          STDOUT.write(js_size + js)
+        end
+      rescue EOFError => e
+        exit
+      end
+    end
+
     # Use Narwhal to run an interactive CoffeeScript session.
     def launch_repl
       exec "#{LAUNCHER}"
@@ -133,6 +154,7 @@ Usage:
       begin
         options = {}
         options[:no_wrap] = true if @options[:no_wrap]
+        options[:globals] = true if @options[:server]
         CoffeeScript.compile(script, options)
       rescue CoffeeScript::ParseError, SyntaxError => e
         STDERR.puts "#{source}: #{e.message}"
@@ -189,6 +211,9 @@ Usage:
         end
         opts.on('-n', '--no-wrap', 'raw output, no safety wrapper or vars') do |n|
           @options[:no_wrap] = true
+        end
+        opts.on('--server', 'run as a compiler server, for use by the REPL') do |r|
+          @options[:server] = true
         end
         opts.on_tail('--install-bundle', 'install the CoffeeScript TextMate bundle') do |i|
           install_bundle
