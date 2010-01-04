@@ -37,6 +37,9 @@ module CoffeeScript
     COMMENT_CLEANER = /(^\s*#|\n\s*$)/
     NO_NEWLINE = /\A([+\*&|\/\-%=<>:!.\\][<>=&|]*|and|or|is|isnt|not|delete|typeof|instanceof)\Z/
 
+    # String interpolation.
+    INTERPOLATION = /([^\\]|\A)#\{(.*?[^\\])\}/m
+
     # Tokens which a regular expression will never immediately follow, but which
     # a division operator might.
     # See: http://www.mozilla.org/js/language/js20-2002-04/rationale/syntax.html#regular-expressions
@@ -47,18 +50,19 @@ module CoffeeScript
     ]
 
     # Scan by attempting to match tokens one character at a time. Slow and steady.
-    def tokenize(code)
-      @code = code.chomp  # Cleanup code by remove extra line breaks
-      @i = 0              # Current character position we're parsing
-      @line = 1           # The current line.
-      @indent = 0         # The current indent level.
-      @indents = []       # The stack of all indent levels we are currently within.
-      @tokens = []        # Collection of all parsed tokens in the form [:TOKEN_TYPE, value]
+    def tokenize(code, o={})
+      @code = code.chomp    # Cleanup code by remove extra line breaks
+      @i = 0                # Current character position we're parsing
+      @line = o[:line] || 1 # The current line.
+      @indent = 0           # The current indent level.
+      @indents = []         # The stack of all indent levels we are currently within.
+      @tokens = []          # Collection of all parsed tokens in the form [:TOKEN_TYPE, value]
       while @i < @code.length
         @chunk = @code[@i..-1]
         extract_next_token
       end
       puts "original stream: #{@tokens.inspect}" if ENV['VERBOSE']
+      return @tokens if o[:pristine]
       close_indentation
       Rewriter.new.rewrite(@tokens)
     end
@@ -97,15 +101,20 @@ module CoffeeScript
       @i += number.length
     end
 
-    # Matches strings, including multi-line strings.
+    # Matches strings, including multi-line strings, and interpolated strings.
     def string_token
       return false unless string = @chunk[STRING, 1]
       escaped = string.gsub(MULTILINER) do |match|
         @line += 1
         " \\\n"
       end
-      token(:STRING, escaped)
       @i += string.length
+      if string[0..0] == '"' && string.match(INTERPOLATION)
+        opts = {:pristine => true, :line => @line}
+        @tokens += Lexer.new.tokenize(string.gsub(INTERPOLATION, '\1" + \2 + "'), opts)
+        return true
+      end
+      token(:STRING, escaped)
     end
 
     # Matches interpolated JavaScript.
