@@ -117,7 +117,7 @@ module CoffeeScript
       o.merge!(:indent => indent, :scope => Scope.new(nil, self))
       code = o[:no_wrap] ? compile_node(o) : compile_with_declarations(o)
       code.gsub!(STRIP_TRAILING_WHITESPACE, '')
-      o[:no_wrap] ? code : "(function(){\n#{code}\n})();"
+      o[:no_wrap] ? code : "(function() {\n#{code}\n})();"
     end
 
     def compile_with_declarations(o={})
@@ -205,14 +205,6 @@ module CoffeeScript
       self
     end
 
-    def super?
-      @variable == :super
-    end
-
-    def prefix
-      @new ? "new " : ''
-    end
-
     def splat?
       @arguments.any? {|a| a.is_a?(ArgSplatNode) }
     end
@@ -222,10 +214,16 @@ module CoffeeScript
     end
 
     def compile_node(o)
-      return write(compile_splat(o)) if splat?
+      return write(compile_splat(o))       if splat?
       args = @arguments.map{|a| a.compile(o) }.join(', ')
-      return write(compile_super(args, o)) if super?
-      write("#{prefix}#{@variable.compile(o)}(#{args})")
+      return write(compile_super(args, o)) if @variable == :super
+      return write(compile_new(args, o))   if @new
+      write("#{@variable.compile(o)}(#{args})")
+    end
+
+    def compile_new(args, o)
+      var = @variable.compile(o)
+      "new (function() {\n#{o[:indent] + TAB}#{var}.apply(this, Array.prototype.slice.call(arguments, 0));\n#{o[:indent]}})(#{args})"
     end
 
     def compile_super(args, o)
@@ -242,7 +240,7 @@ module CoffeeScript
         code = arg.is_a?(ArgSplatNode) ? code : "[#{code}]"
         arg.equal?(@arguments.first) ? code : ".concat(#{code})"
       end
-      "#{prefix}#{meth}.apply(#{obj}, #{args.join('')})"
+      "#{meth}.apply(#{obj}, #{args.join('')})"
     end
   end
 

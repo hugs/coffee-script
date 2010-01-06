@@ -1,4 +1,4 @@
-(function(){
+(function() {
 
   // The cornerstone, an each implementation.
   // Handles objects implementing forEach, arrays, and raw objects.
